@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import datetime
 import time
 from decimal import Decimal
 from urllib.parse import urlencode
@@ -114,6 +115,15 @@ class BlockExplorerApi:
             transactions.append(transaction)
         return transactions
 
+    def get_normal_balances(self, address: str) -> list:
+        balances = []
+        balance = {
+            'time': int(datetime.datetime.now().timestamp()),
+            'currency': self.base_currency,
+            'balance': Decimal(self._make_api_request(address, 'balance')) / WEI,
+        }
+        balances.append(balance)
+        return balances
 
 def download(config: dict, output_dir: str):
     name = config['name']
@@ -125,13 +135,32 @@ def download(config: dict, output_dir: str):
         config.get('base_currency', DEFAULT_CURRENCY),
     )
     transactions = []
+    balances = []
     for address in addresses:
         transactions += api.get_normal_transactions(address)
         transactions += api.get_internal_transactions(address)
         transactions += api.get_erc20_transfers(address)
+        balances += api.get_normal_balances(address)
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, f'{name}.json')
     with open(output_file_path, 'w') as output_file:
         json.dump(transactions, output_file, indent=4, default=str)
     print(f'Transactions saved to {output_file_path}')
 
+    output_file_path = os.path.join(output_dir, f'{name}-balances.json')
+    with open(output_file_path, 'w') as output_file:
+        json.dump(balances, output_file, indent=4, default=str)
+    print(f'Balances saved to {output_file_path}')
+
+
+if __name__ == '__main__':
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument('-c', '--config',
+                            default='config.json')
+    arg_parser.add_argument('-o', '--output-dir',
+                            default='downloads')
+    args = arg_parser.parse_args()
+    with open(args.config, 'r') as config_file:
+        config = json.load(config_file)
+    output_dir = os.path.join(os.getcwd(), args.output_dir)
+    main(config, output_dir)
