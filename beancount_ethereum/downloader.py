@@ -126,7 +126,8 @@ class BlockExplorerApi:
         balances.append(balance)
         return balances
 
-def download(config: dict, output_dir: str):
+
+def main(config: dict, output_dir: str):
     name = config['name']
     addresses = config['account_map'].keys()
     api = BlockExplorerApi(
