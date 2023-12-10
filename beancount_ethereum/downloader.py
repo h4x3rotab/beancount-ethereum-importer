@@ -113,6 +113,7 @@ class BlockExplorerApi:
                 'currency': item['tokenSymbol'],
                 'value': (Decimal(item['value']) /
                           10 ** Decimal(item['tokenDecimal'])),
+                'contract': item['contractAddress'],
             }
             transactions.append(transaction)
         return transactions
@@ -129,8 +130,8 @@ class BlockExplorerApi:
         return balances
 
 class WalletApi:
-    def __init__(self, api_key: str) -> None:
-        self.api_url = 'https://api.covalenthq.com/v1/eth-mainnet/address/{}/balances_v2/?no-spam=true'
+    def __init__(self, network: str, api_key: str) -> None:
+        self.api_url = f'https://api.covalenthq.com/v1/{network}/address/{}/balances_v2/?no-spam=true'
         self.auth = HTTPBasicAuth(api_key, '')
 
     def get_asset_balances(self, address: str) -> list:
@@ -175,7 +176,7 @@ def download(config: dict, output_dir: str):
         config.get('block_explorer_api_request_delay', 0.0),
         config.get('base_currency', DEFAULT_CURRENCY),
     )
-    wallet_api = WalletApi(config['covalent_api_key'])
+    wallet_api = WalletApi(config['covalent_network'], config['covalent_api_key'])
     transactions = []
     balances = []
     for address in addresses:

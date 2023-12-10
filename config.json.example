@@ -10,6 +10,7 @@
     "block_explorer_api_key": "ABCD1234",
     "block_explorer_api_request_delay": 0,
     "covalent_api_key": "ABCD1234",
+    "covalent_network": "eth-mainnet",
     "base_currency": "ETH",
     "currency_map":  {
         "USDC.E": {"commodity": "USD", "account_suffix": "USDC"},
