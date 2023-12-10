@@ -127,7 +127,7 @@ class BlockExplorerApi:
         return balances
 
 
-def main(config: dict, output_dir: str):
+def download(config: dict, output_dir: str):
     name = config['name']
     addresses = config['account_map'].keys()
     api = BlockExplorerApi(
@@ -153,16 +153,3 @@ def main(config: dict, output_dir: str):
     with open(output_file_path, 'w') as output_file:
         json.dump(balances, output_file, indent=4, default=str)
     print(f'Balances saved to {output_file_path}')
-
-
-if __name__ == '__main__':
-    arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('-c', '--config',
-                            default='config.json')
-    arg_parser.add_argument('-o', '--output-dir',
-                            default='downloads')
-    args = arg_parser.parse_args()
-    with open(args.config, 'r') as config_file:
-        config = json.load(config_file)
-    output_dir = os.path.join(os.getcwd(), args.output_dir)
-    main(config, output_dir)
