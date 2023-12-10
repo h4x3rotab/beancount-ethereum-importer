@@ -1,11 +1,11 @@
-import argparse
 import json
 import os
 import datetime
 import time
+import requests
 from decimal import Decimal
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from requests.auth import HTTPBasicAuth
+from requests.exceptions import HTTPError
 
 DEFAULT_CURRENCY = 'ETH'
 MINER = '0xffffffffffffffffffffffffffffffffffffffff'
@@ -25,6 +25,8 @@ class BlockExplorerApi:
         self.delay = delay
         self._last_request_timestamp = 0.0
         self.base_currency = base_currency
+        self.session = requests.Session()  # Using a session for connection pooling
+        self.session.headers.update({'User-Agent': 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)'})
 
     def _make_api_request(self, address: str, action: str) -> list:
         """
@@ -38,21 +40,21 @@ class BlockExplorerApi:
             'action': action,
             'address': address,
             'sort': 'asc',
+            'apikey': self.api_key  # Assuming that the API key is always provided
         }
-        if self.api_key is not None:
-            params['apikey'] = self.api_key
-        url = f'{self.api_url}?{urlencode(params)}'
-        request = Request(url)
-        #request.add_header('Content-Type', 'application/json')
-        #request.add_header('Accept', 'application/json')
-        request.add_header('User-Agent', 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)')
-        response = urlopen(request).read()
-        self._last_request_timestamp = time.time()
-        data = json.loads(response)
-        if int(data['status']) == 1 or data['message'] in NO_TRANSACTIONS:
-            return data['result']
-        else:
-            raise RuntimeError(response)
+        try:
+            response = self.session.get(self.api_url, params=params)
+            response.raise_for_status()  # Raise an HTTPError if the HTTP request returned an unsuccessful status code
+            data = response.json()
+            self._last_request_timestamp = time.time()
+            if int(data['status']) == 1 or data['message'] in NO_TRANSACTIONS:
+                return data['result']
+            else:
+                raise RuntimeError(f"API Error: {data['message']}")
+        except HTTPError as http_err:
+            raise RuntimeError(f"HTTP error occurred: {http_err}")  # HTTP error
+        except Exception as err:
+            raise RuntimeError(f"An error occurred: {err}")  # Other errors
 
     def get_normal_transactions(self, address: str) -> list:
         transactions = []
@@ -126,6 +128,43 @@ class BlockExplorerApi:
         balances.append(balance)
         return balances
 
+class WalletApi:
+    def __init__(self, api_key: str) -> None:
+        self.api_url = 'https://api.covalenthq.com/v1/eth-mainnet/address/{}/balances_v2/?no-spam=true'
+        self.auth = HTTPBasicAuth(api_key, '')
+
+    def get_asset_balances(self, address: str) -> list:
+        balances = []
+        url = self.api_url.format(address)
+        try:
+            response = requests.get(url, headers={'Content-Type': 'application/json'}, auth=self.auth)
+            response.raise_for_status()
+            r = response.json()
+            if r['error']:
+                raise RuntimeError(f"API Error: {r['error_message']}")
+            data = r['data']
+        except HTTPError as http_err:
+            raise RuntimeError(f"HTTP error occurred: {http_err}")  # HTTP error
+        except Exception as err:
+            raise RuntimeError(f"An error occurred: {err}")  # Other errors
+
+        time_str_trimmed = data['updated_at'][:23]
+        dt = datetime.datetime.strptime(time_str_trimmed, "%Y-%m-%dT%H:%M:%S.%f")
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+        timestamp = int(dt.timestamp())
+        valid_assets = [
+            i for i in data['items']
+            if isinstance(i['quote'], (int, float)) and i['quote'] > 0]
+        for i in valid_assets:
+            balances.append({
+                'time': timestamp,
+                'address': address.lower(),
+                'currency': i['contract_ticker_symbol'],
+                'contract': i['contract_address'],
+                'balance': Decimal(i['balance']) / (10 ** (i['contract_decimals'])),
+                'rate': i['quote_rate'],
+            })
+        return balances
 
 def download(config: dict, output_dir: str):
     name = config['name']
@@ -136,13 +175,14 @@ def download(config: dict, output_dir: str):
         config.get('block_explorer_api_request_delay', 0.0),
         config.get('base_currency', DEFAULT_CURRENCY),
     )
+    wallet_api = WalletApi(config['covalent_api_key'])
     transactions = []
     balances = []
     for address in addresses:
         transactions += api.get_normal_transactions(address)
         transactions += api.get_internal_transactions(address)
         transactions += api.get_erc20_transfers(address)
-        balances += api.get_base_currency_balances(address)
+        balances += wallet_api.get_asset_balances(address)
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, f'{name}.json')
     with open(output_file_path, 'w') as output_file:
