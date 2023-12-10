@@ -131,7 +131,7 @@ class BlockExplorerApi:
 
 class WalletApi:
     def __init__(self, network: str, api_key: str) -> None:
-        self.api_url = f'https://api.covalenthq.com/v1/{network}/address/{}/balances_v2/?no-spam=true'
+        self.api_url = f'https://api.covalenthq.com/v1/{network}/address/{{}}/balances_v2/?no-spam=true'
         self.auth = HTTPBasicAuth(api_key, '')
 
     def get_asset_balances(self, address: str) -> list:
