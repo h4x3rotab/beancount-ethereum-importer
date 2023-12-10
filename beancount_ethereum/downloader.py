@@ -155,7 +155,7 @@ class WalletApi:
         timestamp = int(dt.timestamp())
         valid_assets = [
             i for i in data['items']
-            if isinstance(i['quote'], (int, float)) and i['quote'] > 0]
+            if isinstance(i['quote_rate'], (int, float)) and i['quote_rate'] > 0]
         for i in valid_assets:
             balances.append({
                 'time': timestamp,
